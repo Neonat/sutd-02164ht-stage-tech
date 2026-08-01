@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CORTEX·01 — press telemetry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Martian+Mono:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#ffffff;
+  --void:#050505;
+  --dim:#7a7a7a;
+  --rule:#242424;
+  --stage:transparent;
+  --mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --display:"Anton","Arial Narrow",Impact,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--void);color:var(--ink);
+  font-family:var(--mono);font-size:11px;font-weight:300;
+  letter-spacing:.06em;
+  display:grid;grid-template-rows:auto 1fr auto auto;
+  min-height:100dvh;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+body.inverted{--ink:#0a0a0a;--void:#f2f2f2;--dim:#8a8a8a;--rule:#cfcfcf}
+
+/* ---------- header ---------- */
+header{
+  display:flex;align-items:center;gap:14px;
+  padding:12px 16px;border-bottom:1px solid var(--rule);
+}
+.mark{font-family:var(--display);font-size:19px;letter-spacing:.12em;line-height:1}
+.mark small{font-size:9px;font-family:var(--mono);letter-spacing:.24em;color:var(--dim);
+  display:block;margin-top:3px;font-weight:300}
+.spacer{flex:1}
+.link{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.18em;color:var(--dim)}
+.led{width:8px;height:8px;border:1px solid var(--ink);flex:none}
+.led.on{background:var(--ink);animation:beat 1.6s steps(2,end) infinite}
+@keyframes beat{0%,60%{opacity:1}61%,100%{opacity:.25}}
+
+button{
+  font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.16em;
+  background:transparent;color:var(--ink);border:1px solid var(--ink);
+  padding:7px 12px;cursor:pointer;text-transform:uppercase;
+}
+button:hover:not(:disabled){background:var(--ink);color:var(--void)}
+button:disabled{opacity:.3;cursor:not-allowed}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.ghost{border-color:var(--rule);color:var(--dim)}
+button.ghost:hover{border-color:var(--ink);background:var(--ink);color:var(--void)}
+button.armed{background:var(--ink);color:var(--void)}
+.ipfield{
+  font-family:var(--mono);font-size:10px;font-weight:300;letter-spacing:.1em;
+  background:transparent;color:var(--ink);border:1px solid var(--rule);
+  padding:7px 9px;width:132px;border-radius:0;
+}
+.ipfield:focus{outline:none;border-color:var(--ink)}
+.ipfield::placeholder{color:var(--dim)}
+
+/* ---------- stage ---------- */
+.stage{position:relative;display:grid;place-items:center;min-height:0;padding:10px;background:var(--stage)}
+.stage.checker{
+  background-image:
+    linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%),
+    linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;background-color:#0d0d0d;
+}
+body.inverted .stage.checker{
+  background-image:
+    linear-gradient(45deg,#dcdcdc 25%,transparent 25%,transparent 75%,#dcdcdc 75%),
+    linear-gradient(45deg,#dcdcdc 25%,transparent 25%,transparent 75%,#dcdcdc 75%);
+  background-color:#e8e8e8;
+}
+#brain{
+  display:block;image-rendering:pixelated;image-rendering:crisp-edges;
+  height:min(100%,calc(100dvh - 232px));width:auto;aspect-ratio:1;
+  max-width:100%;cursor:pointer;touch-action:manipulation;
+}
+/* registration marks */
+.reg{position:absolute;width:13px;height:13px;border:1px solid var(--rule);pointer-events:none}
+.reg.tl{top:10px;left:10px;border-right:0;border-bottom:0}
+.reg.tr{top:10px;right:10px;border-left:0;border-bottom:0}
+.reg.bl{bottom:10px;left:10px;border-right:0;border-top:0}
+.reg.br{bottom:10px;right:10px;border-left:0;border-top:0}
+.stagetag{position:absolute;bottom:12px;left:30px;font-size:9px;letter-spacing:.2em;color:var(--dim)}
+.statetag{position:absolute;top:12px;right:30px;font-size:9px;letter-spacing:.2em;color:var(--dim)}
+.statetag.live{color:var(--ink)}
+
+/* ---------- readout ---------- */
+.readout{display:flex;align-items:stretch;border-top:1px solid var(--rule);min-height:96px}
+.count{
+  padding:10px 18px 8px;border-right:1px solid var(--rule);
+  display:flex;flex-direction:column;justify-content:center;flex:none;
+}
+.count .n{
+  font-family:var(--display);font-size:clamp(48px,9vw,84px);line-height:.82;
+  letter-spacing:.02em;font-variant-numeric:tabular-nums;
+  color:var(--ink);
+}
+@supports((-webkit-background-clip:text) or (background-clip:text)){
+  .count .n{
+    color:transparent;
+    background-image:radial-gradient(circle at center,var(--ink) 55%,transparent 57%);
+    background-size:4px 4px;
+    -webkit-background-clip:text;background-clip:text;
+  }
+}
+.count .lbl{font-size:9px;letter-spacing:.28em;color:var(--dim);margin-top:9px}
+.trace{flex:1;position:relative;min-width:0;display:flex;flex-direction:column}
+#eeg{flex:1;width:100%;display:block;image-rendering:pixelated;min-height:0}
+.axis{display:flex;justify-content:space-between;font-size:8px;letter-spacing:.2em;
+  color:var(--dim);padding:0 10px 7px}
+
+/* ---------- controls ---------- */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:16px;
+  padding:11px 16px;border-top:1px solid var(--rule);
+}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl label{font-size:9px;letter-spacing:.2em;color:var(--dim);white-space:nowrap}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:70px;height:14px;background:transparent;cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--rule)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:9px;height:11px;background:var(--ink);margin-top:-5px;border:0;border-radius:0}
+input[type=range]::-moz-range-track{height:1px;background:var(--rule)}
+input[type=range]::-moz-range-thumb{width:9px;height:11px;background:var(--ink);border:0;border-radius:0}
+input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+/* ---------- notice ---------- */
+.notice{
+  position:fixed;inset:auto 16px 16px auto;max-width:340px;
+  border:1px solid var(--ink);background:var(--void);padding:13px 15px;
+  font-size:10px;line-height:1.65;letter-spacing:.04em;z-index:20;
+}
+.notice b{font-weight:700;letter-spacing:.14em;display:block;margin-bottom:6px;font-size:9px}
+.notice code{font-size:10px;color:var(--dim)}
+.notice button{margin-top:10px}
+.boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--void);z-index:30;
+  font-size:10px;letter-spacing:.3em;color:var(--dim)}
+
+@media (max-width:640px){
+  .readout{flex-direction:column;min-height:0}
+  .count{border-right:0;border-bottom:1px solid var(--rule);padding:8px 14px 6px;flex-direction:row;
+    align-items:baseline;gap:12px}
+  .count .lbl{margin-top:0}
+  .trace{height:64px;flex:none}
+  #brain{height:auto;width:min(100%,calc(100dvh - 330px))}
+  .controls{gap:11px 14px;padding:10px 14px}
+  .mark small{display:none}
+  .stagetag,.statetag{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .led.on{animation:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark">CORTEX·01<small>PRESS TELEMETRY</small></div>
+  <div class="spacer"></div>
+  <div class="link"><span class="led" id="led"></span><span id="linkTxt">OFFLINE</span></div>
+  <input id="ip" class="ipfield" value="192.168.0.59" spellcheck="false"
+         inputmode="url" aria-label="ESP32 address">
+  <button id="conn">Connect</button>
+</header>
+
+<div class="stage" id="stage">
+  <span class="reg tl"></span><span class="reg tr"></span>
+  <span class="reg bl"></span><span class="reg br"></span>
+  <span class="stagetag" id="spinTag">ROT 0.00 rad</span>
+  <span class="statetag" id="stateTag">IDLE</span>
+  <canvas id="brain" width="170" height="170" aria-label="Rotating dithered brain. Click to fire."></canvas>
+</div>
+
+<div class="readout">
+  <div class="count">
+    <div class="n" id="countN">0000</div>
+    <div class="lbl">PRESSES</div>
+  </div>
+  <div class="trace">
+    <canvas id="eeg" width="600" height="80"></canvas>
+    <div class="axis"><span>−60s</span><span id="rateTxt">0.0 / MIN</span><span>NOW</span></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="ctl"><label for="spin">SPIN</label><input type="range" id="spin" min="0" max="100" value="34"></div>
+  <div class="ctl"><label for="dots">DOT SIZE</label><input type="range" id="dots" min="0" max="100" value="45"></div>
+  <div class="ctl"><label for="tone">TONE</label><input type="range" id="tone" min="0" max="100" value="50"></div>
+  <button class="ghost" id="screenBtn">Screen: Halftone</button>
+  <button class="ghost" id="bgBtn">BG: Black</button>
+  <button class="ghost" id="invBtn">Invert</button>
+  <div class="spacer"></div>
+  <button id="fireBtn">Test fire</button>
+  <button class="ghost" id="resetBtn">Reset count</button>
+</div>
+
+<div class="boot" id="boot">GENERATING CORTEX…</div>
+
+<script>
+"use strict";
+/* ============================================================
+   1-BIT CORTEX
+   +x anterior · +y superior · +z right(width)
+   Real 3-D point cloud + z-buffer, orthographic projection, so
+   the silhouette narrows correctly as it turns. Dither is applied
+   in SCREEN space at the end, so the dot grid never crawls.
+   ============================================================ */
+
+/* ---------- noise ---------- */
+function hash3(i,j,k){
+  let n=(i*374761393+j*668265263+k*1274126177)|0;
+  n=(n^(n>>13))>>>0; n=Math.imul(n,1274126177)>>>0;
+  return ((n^(n>>16))>>>0)/4294967295;
+}
+const sm=t=>t*t*(3-2*t);
+function vnoise(x,y,z){
+  const i=Math.floor(x),j=Math.floor(y),k=Math.floor(z);
+  const fx=sm(x-i),fy=sm(y-j),fz=sm(z-k);
+  let r=0;
+  for(let dk=0;dk<2;dk++){const wz=dk?fz:1-fz;
+    for(let dj=0;dj<2;dj++){const wyz=(dj?fy:1-fy)*wz;
+      for(let di=0;di<2;di++) r+=hash3(i+di,j+dj,k+dk)*(di?fx:1-fx)*wyz;}}
+  return r;
+}
+function ridged(x,y,z){
+  let s=0,a=1,f=1,n=0;
+  for(let o=0;o<3;o++){s+=(1-Math.abs(vnoise(x*f,y*f,z*f)*2-1))*a;n+=a;a*=.5;f*=2.03;}
+  return s/n;
+}
+function rayEll(dx,dy,dz,cx,cy,cz,rx,ry,rz){
+  const ix=1/(rx*rx),iy=1/(ry*ry),iz=1/(rz*rz);
+  const a=dx*dx*ix+dy*dy*iy+dz*dz*iz;
+  const b=-2*(dx*cx*ix+dy*cy*iy+dz*cz*iz);
+  const c=cx*cx*ix+cy*cy*iy+cz*cz*iz-1;
+  const d=b*b-4*a*c;
+  return d<0?0:(-b+Math.sqrt(d))/(2*a);
+}
+/* distance from origin to cortical surface along unit dir */
+function brainR(dx,dy,dz){
+  const cere=rayEll(dx,dy,dz, .02, .05,0, 1.00,.68,.78);
+  const cbl =rayEll(dx,dy,dz,-.60,-.40,0,  .36,.30,.46);
+  const stem=rayEll(dx,dy,dz,-.18,-.62,0,  .16,.34,.15);
+  const t=cere>cbl?(cere>stem?cere:stem):(cbl>stem?cbl:stem);
+  if(t<=0) return 0;
+  const onC=cere>=cbl&&cere>=stem;
+  const px=dx*t,py=dy*t,pz=dz*t;
+  const F=3.5;
+  let g=ridged(px*F+11.3,py*F+3.1,pz*F+7.7);
+  g=g*g*Math.sqrt(g*g);                       /* sharpen: narrow ridges */
+  const g2=ridged(px*9.1+2.7,py*9.1+5.5,pz*9.1+1.9);
+  let disp=(g-.22)*(onC?.155:.075)+(g2-.5)*.020;
+  if(onC){
+    const mid=Math.exp(-(pz*pz)/.014);
+    const top=Math.max(0,Math.min(1,(py-.10)/.30));
+    disp-=.105*mid*top;                                  /* longitudinal fissure */
+    const track=-.14+.20*px-.10*px*px;
+    const dv=(py-track)/.075;
+    const lat=Math.min(1,Math.pow(Math.abs(pz)/.55,2));
+    disp-=.080*Math.exp(-dv*dv)*lat;                     /* lateral fissure */
+    const dcb=(px+.30)*.55+(py+.28)*.83;
+    disp-=.055*Math.exp(-(dcb*dcb)/.010);                /* cerebellar split */
+  }
+  return t+disp;
+}
+
+/* ---------- point cloud ---------- */
+const NPTS=130000;
+let C=null;
+function buildCloud(N){
+  const px=new Float32Array(N),py=new Float32Array(N),pz=new Float32Array(N);
+  const nx=new Float32Array(N),ny=new Float32Array(N),nz=new Float32Array(N);
+  const dx=new Float32Array(N),dy=new Float32Array(N),dz=new Float32Array(N);
+  const ga=Math.PI*(3-Math.sqrt(5)),eps=.018;
+  for(let i=0;i<N;i++){
+    const uy=1-(i/(N-1))*2, rr=Math.sqrt(Math.max(0,1-uy*uy)), th=ga*i;
+    const ux=Math.cos(th)*rr, uz=Math.sin(th)*rr;
+    const R=brainR(ux,uy,uz), X=ux*R, Y=uy*R, Z=uz*R;
+    let t1x=-uy,t1y=ux,t1z=0,l=Math.hypot(t1x,t1y,t1z);
+    if(l<1e-6){t1x=1;t1y=0;t1z=0;l=1;}
+    t1x/=l;t1y/=l;t1z/=l;
+    const t2x=uy*t1z-uz*t1y,t2y=uz*t1x-ux*t1z,t2z=ux*t1y-uy*t1x;
+    let ax=ux+t1x*eps,ay=uy+t1y*eps,az=uz+t1z*eps,al=Math.hypot(ax,ay,az);
+    ax/=al;ay/=al;az/=al; const Ra=brainR(ax,ay,az);
+    let bx=ux+t2x*eps,by=uy+t2y*eps,bz=uz+t2z*eps,bl=Math.hypot(bx,by,bz);
+    bx/=bl;by/=bl;bz/=bl; const Rb=brainR(bx,by,bz);
+    const e1x=ax*Ra-X,e1y=ay*Ra-Y,e1z=az*Ra-Z;
+    const e2x=bx*Rb-X,e2y=by*Rb-Y,e2z=bz*Rb-Z;
+    let vx=e1y*e2z-e1z*e2y,vy=e1z*e2x-e1x*e2z,vz=e1x*e2y-e1y*e2x;
+    const vl=Math.hypot(vx,vy,vz)||1; vx/=vl;vy/=vl;vz/=vl;
+    if(vx*ux+vy*uy+vz*uz<0){vx=-vx;vy=-vy;vz=-vz;}
+    px[i]=X;py[i]=Y;pz[i]=Z; nx[i]=vx;ny[i]=vy;nz[i]=vz; dx[i]=ux;dy[i]=uy;dz[i]=uz;
+  }
+  return {n:N,px,py,pz,nx,ny,nz,dx,dy,dz};
+}
+
+/* ---------- neurons: nodes + axon arcs ---------- */
+const NNODES=170, ARCSEG=15;
+let nodes=null, arcs=null;
+function buildNet(C){
+  const nd=[];
+  for(let i=0;i<NNODES;i++){
+    const k=(Math.floor(Math.random()*C.n));
+    nd.push({x:C.dx[k],y:C.dy[k],z:C.dz[k]});
+  }
+  const seen=new Set(), ar=[];
+  for(let i=0;i<nd.length;i++){
+    const cands=[];
+    for(let j=0;j<nd.length;j++){
+      if(i===j) continue;
+      const d=nd[i].x*nd[j].x+nd[i].y*nd[j].y+nd[i].z*nd[j].z;
+      cands.push([d,j]);
+    }
+    cands.sort((a,b)=>b[0]-a[0]);
+    for(let c=0;c<2;c++){
+      const j=cands[c][1], key=i<j?i+':'+j:j+':'+i;
+      if(seen.has(key)) continue; seen.add(key);
+      const pts=new Float32Array(ARCSEG*3);
+      for(let s=0;s<ARCSEG;s++){
+        const t=s/(ARCSEG-1);
+        let x=nd[i].x+(nd[j].x-nd[i].x)*t;
+        let y=nd[i].y+(nd[j].y-nd[i].y)*t;
+        let z=nd[i].z+(nd[j].z-nd[i].z)*t;
+        const L=Math.hypot(x,y,z)||1; x/=L;y/=L;z/=L;
+        const R=brainR(x,y,z)+.012;
+        pts[s*3]=x*R; pts[s*3+1]=y*R; pts[s*3+2]=z*R;
+      }
+      ar.push(pts);
+    }
+  }
+  return {nd,ar};
+}
+
+/* ---------- dither matrices (screen-space, so dots never crawl) ---------- */
+const BAYER8=[0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,
+60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,
+15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21].map(v=>(v+.5)/64);
+const CLUSTER8=[24,10,12,26,35,47,49,37,8,0,2,14,45,59,61,51,22,6,4,16,43,57,63,53,
+30,20,18,28,33,41,55,39,34,46,48,36,25,11,13,27,44,58,60,50,9,1,3,15,
+42,56,62,52,23,7,5,17,32,40,54,38,31,21,19,29].map(v=>(v+.5)/64);
+
+/* ---------- state ---------- */
+const cv=document.getElementById('brain'), ctx=cv.getContext('2d',{alpha:true});
+const eeg=document.getElementById('eeg'), ectx=eeg.getContext('2d',{alpha:true});
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const S={
+  low:170, angle:0, spin:reduced?0.10:0.42, gamma:.72, lift:.06,
+  screen:'halftone', clearBg:false, inverted:false,
+  count:0, presses:[], lastPress:-1e9, pulses:[], sparks:[], nextPulse:0, nextSpark:0
+};
+const FIRE_MS=1000;
+
+/* counter persistence — wrapped so it can never break the page */
+function loadCount(){ try{ const v=localStorage.getItem('cortex.count'); if(v!==null) S.count=+v||0; }catch(e){} }
+function saveCount(){ try{ localStorage.setItem('cortex.count',String(S.count)); }catch(e){} }
+
+/* ---------- firing ---------- */
+function fire(){
+  S.lastPress=performance.now();
+  S.presses.push(Date.now());
+  if(S.presses.length>400) S.presses.splice(0,S.presses.length-400);
+}
+const pad=n=>String(Math.max(0,n)).padStart(4,'0');
+function registerPress(authoritative){
+  if(typeof authoritative==='number' && isFinite(authoritative)) S.count=authoritative;
+  else S.count++;
+  saveCount();
+  document.getElementById('countN').textContent=pad(S.count);
+  fire();
+}
+function spawnPulse(){
+  if(!nodes) return;
+  const nd=nodes.nd[(Math.random()*nodes.nd.length)|0];
+  S.pulses.push({ox:nd.x,oy:nd.y,oz:nd.z,t0:performance.now(),dur:520+Math.random()*220});
+  if(S.pulses.length>6) S.pulses.shift();
+}
+function spawnSpark(){
+  if(!nodes) return;
+  S.sparks.push({a:(Math.random()*nodes.ar.length)|0,t0:performance.now(),
+                 dur:170+Math.random()*140,dir:Math.random()<.5?1:-1});
+  if(S.sparks.length>26) S.sparks.shift();
+}
+
+/* ---------- brain render ---------- */
+const Y_CENTER=.11, FIT=2.62;
+let img=null,lum=null,zb=null,msk=null,hot=null,lowCache=0;
+function ensureBuffers(LOW){
+  if(lowCache===LOW) return;
+  lowCache=LOW;
+  cv.width=LOW; cv.height=LOW;
+  img=ctx.createImageData(LOW,LOW);
+  lum=new Float32Array(LOW*LOW); zb=new Float32Array(LOW*LOW);
+  msk=new Uint8Array(LOW*LOW); hot=new Uint8Array(LOW*LOW);
+}
+
+function drawBrain(now){
+  const LOW=S.low; ensureBuffers(LOW);
+  lum.fill(0); zb.fill(-1e9); msk.fill(0); hot.fill(0);
+
+  const ca=Math.cos(S.angle), sa=Math.sin(S.angle);
+  const ppu=LOW/FIT, half=LOW/2;
+  const Lx=-.4204,Ly=.6936,Lz=.5847;
+
+  /* firing envelope: hard stop at exactly FIRE_MS */
+  const age=now-S.lastPress;
+  const firing=age>=0&&age<FIRE_MS;
+  const env=firing?(age<FIRE_MS*.72?1:(FIRE_MS-age)/(FIRE_MS*.28)):0;
+
+  /* live pulses -> comparison bands in cosine space (no acos in the hot loop) */
+  const P=[];
+  if(env>0){
+    for(const p of S.pulses){
+      const a=(now-p.t0)/p.dur;
+      if(a<0||a>1) continue;
+      P.push({ox:p.ox,oy:p.oy,oz:p.oz,front:1-2*a,w:.125,amp:.46*env*(1-a)});
+    }
+  }
+  const np=P.length;
+
+  for(let i=0;i<C.n;i++){
+    const X=C.px[i], Z=C.pz[i];
+    const rz=-X*sa+Z*ca, rx=X*ca+Z*sa;
+    const sx=(half+rx*ppu)|0, sy=(half-(C.py[i]+Y_CENTER)*ppu)|0;
+    if(sx<0||sx>=LOW||sy<0||sy>=LOW) continue;
+    const idx=sy*LOW+sx;
+    if(rz<zb[idx]) continue;
+    zb[idx]=rz;
+    const NX=C.nx[i],NZ=C.nz[i];
+    const rnx=NX*ca+NZ*sa, rnz=-NX*sa+NZ*ca;
+    const ndl=rnx*Lx+C.ny[i]*Ly+rnz*Lz;
+    const f=rnx*.80+C.ny[i]*-.40+rnz*.45;
+    let v=.10+.72*(ndl>0?ndl:0)+.26*(f>0?f:0);
+    if(np){
+      const ux=C.dx[i],uy=C.dy[i],uz=C.dz[i];
+      for(let k=0;k<np;k++){
+        const p=P[k];
+        const dd=ux*p.ox+uy*p.oy+uz*p.oz-p.front;
+        if(dd<-p.w||dd>p.w) continue;
+        const t=dd/p.w;
+        v+=p.amp*(1-t*t);
+      }
+    }
+    lum[idx]=v>1?1:v; msk[idx]=1;
+  }
+
+  /* axons: the whole pathway glows, a hot head runs along it */
+  if(env>0){
+    const project=(X,Y,Z)=>{
+      const rz=-X*sa+Z*ca, rx=X*ca+Z*sa;
+      const sx=(half+rx*ppu)|0, sy=(half-(Y+Y_CENTER)*ppu)|0;
+      if(sx<1||sx>=LOW-1||sy<1||sy>=LOW-1) return -1;
+      const idx=sy*LOW+sx;
+      return rz<zb[idx]-.025?-1:idx;             /* occluded by the cortex */
+    };
+    for(const s2 of S.sparks){
+      const a=(now-s2.t0)/s2.dur;
+      if(a<0||a>1) continue;
+      const pts=nodes.ar[s2.a];
+      const glow=env*(1-a)*.55;
+      for(let j=0;j<ARCSEG;j++){
+        const idx=project(pts[j*3],pts[j*3+1],pts[j*3+2]);
+        if(idx<0) continue;
+        if(msk[idx]){ if(lum[idx]<glow+.42) lum[idx]=Math.min(1,lum[idx]*.5+glow+.34); }
+        else { msk[idx]=1; lum[idx]=glow+.3; }
+      }
+      const u=s2.dir>0?a:1-a;
+      const fi=u*(ARCSEG-1);
+      for(let tail=0;tail<5;tail++){
+        const uu=fi-tail*.9;
+        if(uu<0) break;
+        const j0=Math.min(ARCSEG-2,Math.floor(uu)), jt=uu-j0;
+        const X=pts[j0*3]+(pts[(j0+1)*3]-pts[j0*3])*jt;
+        const Y=pts[j0*3+1]+(pts[(j0+1)*3+1]-pts[j0*3+1])*jt;
+        const Z=pts[j0*3+2]+(pts[(j0+1)*3+2]-pts[j0*3+2])*jt;
+        const idx=project(X,Y,Z);
+        if(idx<0) continue;
+        const rad=tail===0?1:0;
+        for(let oy=-rad;oy<=rad;oy++)for(let ox=-rad;ox<=rad;ox++){
+          const q=idx+oy*LOW+ox;
+          if(q<0||q>=LOW*LOW) continue;
+          msk[q]=1; lum[q]=1; hot[q]=1;          /* pure ink, bypasses the screen */
+        }
+      }
+    }
+  }
+
+  /* screen-space dither -> 1 bit */
+  const M=S.screen==='halftone'?CLUSTER8:BAYER8;
+  const d=img.data;
+  const inkR=S.inverted?10:255, paperA=S.clearBg?0:255, paperV=S.inverted?242:5;
+  for(let y=0;y<LOW;y++){
+    const row=(y&7)*8;
+    for(let x=0;x<LOW;x++){
+      const i=y*LOW+x, o=i*4;
+      if(!msk[i]){ d[o]=d[o+1]=d[o+2]=paperV; d[o+3]=paperA; continue; }
+      let v=lum[i];
+      v=Math.pow(v,S.gamma)+S.lift;
+      const on=hot[i]?true:v>M[row+(x&7)];
+      const c=on?inkR:paperV;
+      d[o]=d[o+1]=d[o+2]=c;
+      d[o+3]=on?255:paperA;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return firing;
+}
+
+/* ---------- EEG trace ---------- */
+function drawTrace(){
+  const W=eeg.clientWidth||600, H=eeg.clientHeight||80;
+  const w=Math.max(120,Math.round(W/2)), h=Math.max(30,Math.round(H/2));
+  if(eeg.width!==w||eeg.height!==h){eeg.width=w;eeg.height=h;}
+  const id=ectx.createImageData(w,h), d=id.data;
+  const inkV=S.inverted?10:255, paperV=S.inverted?242:5, paperA=S.clearBg?0:0;
+  const now=Date.now(), SPAN=60000;
+  const mid=h*.55;
+
+  const env=new Float32Array(w);
+  for(let x=0;x<w;x++){
+    const t=now-SPAN*(1-x/(w-1));
+    let v=(vnoise(x*.35,t*.00004,7.7)-.5)*.20;
+    for(let i=S.presses.length-1;i>=0;i--){
+      const dt=(t-S.presses[i])/1000;
+      if(dt<0) continue;
+      if(dt>2.2) break;
+      v+=Math.exp(-dt*3.2)*Math.cos(dt*19)*1.0;
+    }
+    env[x]=Math.tanh(v*1.15);
+  }
+  for(let i=0;i<d.length;i+=4){d[i]=d[i+1]=d[i+2]=paperV;d[i+3]=paperA;}
+  const put=(x,y,a)=>{
+    if(x<0||x>=w||y<0||y>=h) return;
+    const o=(y*w+x)*4; d[o]=d[o+1]=d[o+2]=a?inkV:paperV; d[o+3]=a?255:paperA;
+  };
+  /* baseline */
+  for(let x=0;x<w;x+=2) put(x,Math.round(mid),1);
+  /* dithered fill + solid trace */
+  for(let x=0;x<w;x++){
+    const y=Math.round(mid-env[x]*h*.34);
+    const a=Math.min(y,Math.round(mid)), b=Math.max(y,Math.round(mid));
+    const dens=Math.min(1,Math.abs(env[x])*1.5);
+    for(let yy=a;yy<=b;yy++){
+      if(CLUSTER8[(yy&7)*8+(x&7)]<dens*.8) put(x,yy,1);
+    }
+    put(x,y,1);
+    if(x>0){
+      const py=Math.round(mid-env[x-1]*h*.34);
+      const s=Math.min(py,y), e=Math.max(py,y);
+      for(let yy=s;yy<=e;yy++) put(x,yy,1);
+    }
+  }
+  ectx.putImageData(id,0,0);
+}
+
+/* ---------- loop ---------- */
+let last=performance.now(), traceAcc=0;
+const stateTag=document.getElementById('stateTag'),
+      spinTag=document.getElementById('spinTag'),
+      rateTxt=document.getElementById('rateTxt');
+
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000); last=now;
+  S.angle+=S.spin*dt;
+  if(S.angle>Math.PI*2) S.angle-=Math.PI*2;
+
+  const age=now-S.lastPress;
+  const firing=age>=0&&age<FIRE_MS;
+  if(firing){
+    if(now>S.nextPulse){ spawnPulse(); S.nextPulse=now+90+Math.random()*70; }
+    if(now>S.nextSpark){ spawnSpark(); S.nextSpark=now+34+Math.random()*40; }
+  }else if(S.pulses.length||S.sparks.length){
+    S.pulses.length=0; S.sparks.length=0;      /* hard stop at 1 s */
+  }
+
+  drawBrain(now);
+
+  stateTag.textContent=firing?'FIRING':'IDLE';
+  stateTag.classList.toggle('live',firing);
+  spinTag.textContent='ROT '+S.angle.toFixed(2)+' rad';
+
+  traceAcc+=dt;
+  if(traceAcc>0.1){ traceAcc=0; drawTrace(); updateRate(); }
+  requestAnimationFrame(loop);
+}
+function updateRate(){
+  const now=Date.now(), n=S.presses.filter(t=>now-t<60000).length;
+  rateTxt.textContent=n.toFixed(1)+' / MIN';
+}
+
+/* ---------- controls ---------- */
+const $=id=>document.getElementById(id);
+$('spin').addEventListener('input',e=>{ S.spin=(e.target.value/100)*1.6; });
+$('dots').addEventListener('input',e=>{
+  S.low=Math.round(96+(1-e.target.value/100)*140);   /* bigger dots = fewer pixels */
+});
+$('tone').addEventListener('input',e=>{
+  const t=e.target.value/100;
+  S.gamma=1.15-t*0.75; S.lift=-0.04+t*0.20;
+});
+$('screenBtn').addEventListener('click',e=>{
+  S.screen=S.screen==='halftone'?'bayer':'halftone';
+  e.target.textContent='Screen: '+(S.screen==='halftone'?'Halftone':'Bayer');
+});
+$('bgBtn').addEventListener('click',e=>{
+  S.clearBg=!S.clearBg;
+  e.target.textContent='BG: '+(S.clearBg?'Transparent':'Black');
+  $('stage').classList.toggle('checker',S.clearBg);
+});
+$('invBtn').addEventListener('click',()=>{
+  S.inverted=!S.inverted;
+  document.body.classList.toggle('inverted',S.inverted);
+});
+$('fireBtn').addEventListener('click',()=>registerPress());
+cv.addEventListener('click',()=>registerPress());
+
+let resetArmed=0;
+$('resetBtn').addEventListener('click',async e=>{
+  if(Date.now()<resetArmed){
+    e.target.textContent='Reset count'; e.target.classList.remove('armed'); resetArmed=0;
+    if(NET.host&&NET.on){
+      const ok=await espReset();
+      if(!ok) notice('Reset failed','The ESP32 did not answer <code>/reset</code>. '+
+        'The on-screen count was left alone so it still matches the device.');
+      return;                                  /* the poll picks up the new value */
+    }
+    S.count=0; S.presses.length=0; saveCount();
+    $('countN').textContent=pad(0);
+  }else{
+    resetArmed=Date.now()+3000;
+    e.target.textContent='Confirm reset'; e.target.classList.add('armed');
+    setTimeout(()=>{ if(resetArmed&&Date.now()>=resetArmed){
+      e.target.textContent='Reset count'; e.target.classList.remove('armed'); resetArmed=0; } },3100);
+  }
+});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='Enter'){
+    if(document.activeElement&&document.activeElement.tagName==='BUTTON') return;
+    e.preventDefault(); registerPress();
+  }
+});
+
+/* ---------- ESP32 link: HTTP polling ----------
+   GET /counter -> {"counter": <int>}
+   GET /reset   -> zeroes it
+   The device count is authoritative: the display follows it, so a browser
+   refresh or an ESP reboot can never leave the two disagreeing.
+   ---------------------------------------------------------------- */
+const NET={host:'',on:false,timer:0,last:null,fails:0,period:700,busy:false};
+
+function setLink(state,txt){
+  $('led').classList.toggle('on',state==='on');
+  $('linkTxt').textContent=txt;
+  $('conn').textContent=NET.on?'Disconnect':'Connect';
+}
+function notice(title,html){
+  const old=document.querySelector('.notice'); if(old) old.remove();
+  const n=document.createElement('div'); n.className='notice';
+  n.innerHTML='<b>'+title+'</b>'+html+'<br><button class="ghost">Dismiss</button>';
+  n.querySelector('button').onclick=()=>n.remove();
+  document.body.appendChild(n);
+}
+function espURL(path){
+  let h=NET.host.trim().replace(/^https?:\/\//,'').replace(/\/+$/,'');
+  return 'http://'+h+path;
+}
+async function grab(path,ms){
+  const ac=new AbortController();
+  const t=setTimeout(()=>ac.abort(),ms||2000);
+  try{ return await fetch(espURL(path),{signal:ac.signal,cache:'no-store'}); }
+  finally{ clearTimeout(t); }
+}
+async function espReset(){
+  try{ const r=await grab('/reset',2500); return r.ok; }catch(e){ return false; }
+}
+
+/* multiple presses can land between two polls — fire one burst per press */
+function catchUp(n){
+  const burst=Math.min(n,4);
+  for(let i=0;i<burst;i++) setTimeout(()=>fire(),i*110);
+  const now=Date.now();
+  for(let i=0;i<n;i++) S.presses.push(now-(n-1-i)*90);
+  if(S.presses.length>400) S.presses.splice(0,S.presses.length-400);
+}
+
+async function poll(){
+  if(!NET.on||NET.busy) return;
+  NET.busy=true;
+  try{
+    const r=await grab('/counter',2000);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const c=Number(data.counter);
+    if(!isFinite(c)) throw new Error('bad payload');
+
+    if(NET.last===null){
+      NET.last=c;                       /* first read: adopt, do not fire */
+    }else if(c>NET.last){
+      catchUp(c-NET.last); NET.last=c;
+    }else if(c<NET.last){
+      NET.last=c; S.presses.length=0;   /* device was reset elsewhere */
+    }
+    S.count=c; saveCount();
+    $('countN').textContent=pad(c);
+    NET.fails=0;
+    setLink('on',NET.host.toUpperCase());
+  }catch(err){
+    NET.fails++;
+    if(NET.fails>=3){
+      setLink('off','NO REPLY');
+      if(NET.fails===3) explainFailure(err);
+    }
+  }finally{
+    NET.busy=false;
+  }
+}
+
+function explainFailure(err){
+  const https=location.protocol==='https:';
+  if(https){
+    notice('Blocked: mixed content',
+      'This page is on <code>https://</code> and the ESP32 only speaks '+
+      '<code>http://</code>. Browsers refuse that combination, so the request '+
+      'never left the tab.<br><br>Run the page over plain HTTP on the same '+
+      'network instead — see the README.');
+  }else{
+    notice('No answer from the ESP32',
+      'Tried <code>'+espURL('/counter')+'</code> without success.<br><br>'+
+      'Check that the address matches the Serial Monitor, that this computer is '+
+      'on the same Wi-Fi, and that the sketch sends the CORS header '+
+      '<code>Access-Control-Allow-Origin: *</code>. Without it the browser '+
+      'discards the reply even though the ESP32 answered.');
+  }
+}
+
+function connect(){
+  if(NET.on){
+    NET.on=false; clearInterval(NET.timer); NET.timer=0; NET.last=null; NET.fails=0;
+    setLink('off','OFFLINE');
+    return;
+  }
+  NET.host=$('ip').value.trim();
+  if(!NET.host){ $('ip').focus(); return; }
+  try{ localStorage.setItem('cortex.host',NET.host); }catch(e){}
+  NET.on=true; NET.last=null; NET.fails=0;
+  setLink('wait','POLLING');
+  poll();
+  NET.timer=setInterval(poll,NET.period);
+}
+$('conn').addEventListener('click',connect);
+$('ip').addEventListener('keydown',e=>{ if(e.key==='Enter'){ if(NET.on) connect(); connect(); }});
+try{ const h=localStorage.getItem('cortex.host'); if(h) $('ip').value=h; }catch(e){}
+
+/* ---------- boot ---------- */
+loadCount();
+$('countN').textContent=pad(S.count);
+setLink('off','OFFLINE');
+requestAnimationFrame(()=>setTimeout(()=>{
+  C=buildCloud(NPTS);
+  nodes=buildNet(C);
+  $('boot').remove();
+  drawTrace();
+  requestAnimationFrame(t=>{last=t;loop(t);});
+},30));
+addEventListener('resize',()=>drawTrace());
+</script>
+</body>
+</html>
