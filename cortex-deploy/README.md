@@ -95,6 +95,9 @@ Space or a click on the brain also counts as a press.
 
 ## Hardware
 
-Button on GPIO 4 to GND, internal pull-up, 40 ms debounce.
-`showCount(long n)` is the hook for the LED matrix and currently only logs
-to serial.
+Button on GPIO 5 to GND, internal pull-up, 50 ms debounce.
+
+A WS2812B strip (100 LEDs, data on GPIO 7) visualizes presses: each press
+launches a pulse that travels down the strip with a fading trail, up to 8
+pulses in flight at once. The pulse color starts white and shifts toward
+full red as the count approaches 300 presses (`TRANSITION_PRESSES`).

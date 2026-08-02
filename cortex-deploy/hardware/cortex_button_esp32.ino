@@ -1,41 +1,59 @@
 /* ============================================================
-   CORTEX·01 — ESP32 Wi-Fi button
+   CORTEX·01 — ESP32 Wi-Fi button + WS2812B pulse strip
 
-   Serves the same API your Streamlit dashboard already uses:
+   Serves the same API the web page and Streamlit dashboard use:
      GET /counter -> {"counter": 12}
-     GET /reset   -> {"counter": 0}
+     GET /reset   -> {"counter": 0, "status": "reset"}
 
-   The one addition the browser needs is the CORS header. Streamlit
+   Every response carries Access-Control-Allow-Origin. Streamlit
    works without it because Python fetches server-side, where the
-   same-origin policy does not apply. JavaScript in a tab is subject
-   to it, so without this header the browser throws the reply away
-   even though the ESP32 answered correctly.
+   same-origin policy does not apply. JavaScript in a browser tab
+   is subject to it, so without this header the browser throws the
+   reply away even though the ESP32 answered correctly.
 
-   Board: ESP32 / ESP32-S3.  Library: WebServer (bundled).
+   Each press launches a pulse down the LED strip. The pulse color
+   shifts from white toward full red as the count approaches
+   TRANSITION_PRESSES.
+
+   Board: ESP32 / ESP32-S3.  Libraries: WebServer (bundled), FastLED.
    ============================================================ */
 
+#include <FastLED.h>
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char *WIFI_SSID = "YOUR_WIFI";
-const char *WIFI_PASS = "YOUR_PASSWORD";
+#define Button_Pin 5
+#define LED 7
+#define num_leds 100
 
-const int BUTTON_PIN  = 4;      // button to GND, internal pull-up
-const int DEBOUNCE_MS = 40;
+#define MAX_PULSES 8
+#define PULSE_SPEED 10
+#define TRAIL_FADE 20
+
+#define TRANSITION_PRESSES 300   // how many presses to go from white to full red
+
+// ---- WiFi credentials ----
+const char* ssid = "router12345";
+const char* password = "router12345";
 
 WebServer server(80);
 
-volatile long pressCount = 0;
-int  lastReading = HIGH;
-int  stableState = HIGH;
-unsigned long lastEdge = 0;
+CRGB leds[num_leds];
 
-// ---- LED matrix hook -------------------------------------------------
-// Fill in for your matrix (MAX7219, HUB75, NeoPixel grid, ...).
-void showCount(long n) {
-  Serial.printf("count = %ld\n", n);
-}
+struct Pulse {
+  bool active = false;
+  unsigned long startTime = 0;
+};
 
+Pulse pulses[MAX_PULSES];
+
+int currentState = HIGH;
+int lastState = HIGH;
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 50;
+int counter = 0;
+
+// ---- HTTP handlers ----
 // Every response carries CORS, so any page on the LAN can read it.
 void sendJSON(const String &body) {
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -43,14 +61,14 @@ void sendJSON(const String &body) {
   server.send(200, "application/json", body);
 }
 
-void handleCounter() {
-  sendJSON("{\"counter\":" + String(pressCount) + "}");
+void handleGetCounter() {
+  sendJSON("{\"counter\":" + String(counter) + "}");
 }
 
-void handleReset() {
-  pressCount = 0;
-  showCount(pressCount);
-  sendJSON("{\"counter\":0,\"status\":\"reset\"}");
+void handleResetCounter() {
+  counter = 0;
+  Serial.println("Counter reset via HTTP");
+  sendJSON("{\"counter\":" + String(counter) + ",\"status\":\"reset\"}");
 }
 
 // Browsers may send a preflight OPTIONS before the real request.
@@ -61,21 +79,32 @@ void handleOptions() {
   server.send(204);
 }
 
-void setup() {
-  Serial.begin(115200);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("connecting");
-  while (WiFi.status() != WL_CONNECTED) { delay(400); Serial.print("."); }
-
+void setupWiFi() {
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(300);
+    Serial.print(".");
+  }
   Serial.println();
-  Serial.print("ready at http://");
+  Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());     // <- paste this into the page
+}
 
-  server.on("/counter", HTTP_GET, handleCounter);
-  server.on("/reset",   HTTP_GET, handleReset);
+void setup() {
+  delay(500);
+  pinMode(Button_Pin, INPUT_PULLUP);
+  Serial.begin(115200);
+
+  FastLED.addLeds<WS2812B, LED, GRB>(leds, num_leds).setCorrection(TypicalLEDStrip);
+  FastLED.setBrightness(150);
+  FastLED.clear();
+  FastLED.show();
+
+  setupWiFi();
+
+  server.on("/counter", HTTP_GET, handleGetCounter);
+  server.on("/reset", HTTP_GET, handleResetCounter);
   server.onNotFound([]() {
     if (server.method() == HTTP_OPTIONS) handleOptions();
     else {
@@ -84,23 +113,77 @@ void setup() {
     }
   });
   server.begin();
+  Serial.println("HTTP server started");
 
-  showCount(pressCount);
+  Serial.println("READY");
+}
+
+void triggerPulse() {
+  for (int i = 0; i < MAX_PULSES; i++) {
+    if (!pulses[i].active) {
+      pulses[i].active = true;
+      pulses[i].startTime = millis();
+      Serial.print("Pulse started in slot ");
+      Serial.println(i);
+      return;
+    }
+  }
+  Serial.println("Max pulses reached, ignoring press");
+}
+
+void updateButton() {
+  int reading = digitalRead(Button_Pin);
+
+  if (reading != lastState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != currentState) {
+      currentState = reading;
+      if (currentState == LOW) {
+        triggerPulse();
+        counter += 1;
+        Serial.println(counter);
+      }
+    }
+  }
+
+  lastState = reading;
+}
+
+// Interpolates from white -> red as counter approaches TRANSITION_PRESSES
+CRGB getPulseColor() {
+  int p = min(counter, TRANSITION_PRESSES);
+  uint8_t g = map(p, 0, TRANSITION_PRESSES, 255, 0);
+  uint8_t b = map(p, 0, TRANSITION_PRESSES, 255, 0);
+  return CRGB(255, g, b);
+}
+
+void updatePulses() {
+  fadeToBlackBy(leds, num_leds, TRAIL_FADE);
+
+  CRGB pulseColor = getPulseColor();
+
+  for (int i = 0; i < MAX_PULSES; i++) {
+    if (!pulses[i].active) continue;
+
+    unsigned long elapsed = millis() - pulses[i].startTime;
+    int pos = elapsed / PULSE_SPEED;
+
+    if (pos >= num_leds) {
+      pulses[i].active = false;
+      continue;
+    }
+
+    leds[pos] = pulseColor;
+  }
+
+  FastLED.show();
 }
 
 void loop() {
-  server.handleClient();
-
-  int reading = digitalRead(BUTTON_PIN);
-  if (reading != lastReading) {
-    lastEdge = millis();
-    lastReading = reading;
-  }
-  if (millis() - lastEdge > DEBOUNCE_MS && reading != stableState) {
-    stableState = reading;
-    if (stableState == LOW) {          // falling edge = press
-      pressCount++;
-      showCount(pressCount);
-    }
-  }
+  server.handleClient();  // non-blocking, checks for incoming HTTP requests
+  updateButton();
+  updatePulses();
 }
