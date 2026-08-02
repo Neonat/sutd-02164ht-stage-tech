@@ -48,6 +48,10 @@ button,select,input{font-family:inherit;color:inherit}
 @keyframes drift{
   0%{transform:translate(0,0)}33%{transform:translate(-2%,1%)}66%{transform:translate(1%,-2%)}100%{transform:translate(0,0)}
 }
+#scan{
+  position:absolute;inset:0;pointer-events:none;opacity:.38;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0 1px, transparent 1px 3px);
+}
 
 /* ---------- hud ---------- */
 #hud{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(20px,4vh,44px) clamp(20px,4vw,56px);pointer-events:none}
@@ -68,12 +72,19 @@ button,select,input{font-family:inherit;color:inherit}
 
 /* ---------- the clock ---------- */
 #clockblock{margin:auto 0;display:flex;flex-direction:column;align-items:center;gap:clamp(14px,3vh,30px)}
-#stageline{display:flex;gap:16px;align-items:baseline}
 #led{
   display:flex;align-items:flex-end;gap:.9vw;
   color:var(--led);
-  transform:skewX(-4deg);
-  filter:drop-shadow(0 0 clamp(10px,2.2vw,34px) currentColor);
+  filter:drop-shadow(0 0 clamp(5px,1vw,14px) currentColor);
+  animation:ledflick 7.3s linear infinite;
+}
+/* irregular sub-second dips — unstable supply */
+@keyframes ledflick{
+  0%,11%,12%,37%,37.8%,62%,62.7%,88%,88.8%,100%{opacity:1}
+  11.5%{opacity:.93}
+  37.4%{opacity:.96}
+  62.3%{opacity:.88}
+  88.4%{opacity:.95}
 }
 #led svg{display:block}
 .dig{height:min(clamp(120px,34vh,44vh),22vw);width:auto}
@@ -96,34 +107,15 @@ body.h24 #ampm{display:none}
 body.nosec .dig.small,body.nosec #secwrap{display:none}
 #secwrap{display:flex;gap:.9vw;align-items:flex-end}
 
-/* ---------- night tube (liquid) ---------- */
+/* ---------- night meter (segmented, machine) ---------- */
 #bottom{display:flex;flex-direction:column;gap:12px;pointer-events:none}
-#tube{
-  position:relative;height:22px;border:1px solid var(--ink3);border-radius:999px;
-  overflow:hidden;background:rgba(255,255,255,.02);
-}
-#liquid{
-  position:absolute;top:0;bottom:0;left:0;width:0%;
-  border-radius:999px 0 0 999px;
-  background:linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,0) 46%), var(--led);
-  box-shadow:0 0 22px var(--led);
-}
-#liquid::before{
-  content:'';position:absolute;inset:0;
-  background:repeating-linear-gradient(90deg, rgba(255,255,255,.13) 0 16px, transparent 16px 38px);
-  mix-blend-mode:screen;opacity:.55;
-  animation:ripple 2.4s linear infinite;
-}
-@keyframes ripple{to{transform:translateX(38px)}}
-#liquid::after{
-  content:'';position:absolute;right:-8px;top:50%;width:16px;height:150%;
-  background:radial-gradient(closest-side, var(--flare), transparent 72%);
-  filter:blur(2px);opacity:.8;
-  animation:slosh 1.6s ease-in-out infinite;
-}
-@keyframes slosh{0%,100%{transform:translateY(-58%)}50%{transform:translateY(-42%)}}
-body.done #liquid::after{animation:none;opacity:0}
-body.done #liquid{border-radius:999px}
+#meter{display:flex;gap:3px;height:clamp(16px,3vh,28px)}
+.cell{flex:1;background:rgba(255,255,255,.045)}
+.cell.lit{background:var(--led);box-shadow:0 0 9px var(--led)}
+.cell.edge{animation:cellflick .32s steps(2,jump-none) infinite}
+@keyframes cellflick{0%{opacity:.22}100%{opacity:1}}
+.cell.cut{background:rgba(255,255,255,.045);box-shadow:none;animation:none}
+body.done .cell{animation:none}
 
 /* ---------- shutdown ---------- */
 body.off #hud,body.off #tab,body.off #panel{display:none}
@@ -180,18 +172,6 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
 .keys b{color:var(--bone);font-weight:400;white-space:nowrap}
 .note{font-family:var(--label);font-size:10px;line-height:1.6;letter-spacing:.08em;color:var(--dim)}
 
-/* stage editor */
-#stageList{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto}
-.srow{display:grid;grid-template-columns:1fr 58px 52px 58px 24px;gap:4px;align-items:center}
-.srow input{padding:5px 6px;font-size:11px}
-.srow .del{
-  background:var(--ink1);border:1px solid var(--ink2);color:var(--dim);cursor:pointer;
-  font-size:12px;padding:4px 0;line-height:1;
-}
-.srow .del:hover{color:var(--bone);border-color:var(--gray)}
-.srow.cur input{border-color:var(--gray)}
-.shead{display:grid;grid-template-columns:1fr 58px 52px 58px 24px;gap:4px;
-  font-family:var(--label);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-thumb{background:var(--ink3)}
 ::-webkit-scrollbar-track{background:transparent}
@@ -207,6 +187,7 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
 <div id="stage">
   <div id="vignette"></div>
   <div id="grain"></div>
+  <div id="scan"></div>
 
   <div id="hud">
     <div id="topbar">
@@ -225,9 +206,7 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
     </div>
 
     <div id="bottom">
-      <div id="tube">
-        <div id="liquid"></div>
-      </div>
+      <div id="meter"></div>
     </div>
   </div>
 </div>
@@ -242,36 +221,16 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
       <button class="btn" id="btnTrackMode">Track</button>
     </div>
     <div class="row">
-      <button class="btn" id="btnNext">Next stage</button>
-      <button class="btn" id="btnBack">Back</button>
+      <button class="btn" id="btnNext">Hour forward</button>
+      <button class="btn" id="btnBack">Hour back</button>
     </div>
     <div class="row">
       <button class="btn" id="btnOff">Shutdown</button>
       <button class="btn" id="btnRestart">Restart 23:00</button>
     </div>
     <div class="note" id="modeNote">
-      Manual — fire <b>Next stage</b> (or Space) as the music reaches each
-      section. The clock glides to that stage's time over its travel
-      seconds, then holds. It never moves on its own.
-    </div>
-  </div>
-
-  <div class="grp" style="grid-column:span 2;min-width:280px">
-    <h2>Stages of the music</h2>
-    <div class="shead"><span>stage</span><span>clock</span><span>travel s</span><span>cue</span><span></span></div>
-    <div id="stageList"></div>
-    <div class="row">
-      <button class="btn" id="btnAdd">Add stage</button>
-      <button class="btn" id="btnSpread">Spread cues over track</button>
-      <button class="btn" id="btnExport">Export</button>
-      <button class="btn" id="btnImport">Import</button>
-      <input type="file" id="importFile" accept="application/json" style="display:none">
-    </div>
-    <div class="note">
-      <b>Clock</b> is where the night stands when the stage lands (23:00 →
-      07:00). <b>Travel</b> is the glide length in manual mode, in real
-      seconds. <b>Cue</b> is the moment in the track (m:ss) where the stage
-      begins in track mode. Edits save in this browser.
+      Manual — <b>Hour forward</b> (or Space) glides the clock one hour
+      ahead, then holds. It never moves on its own.
     </div>
   </div>
 
@@ -310,9 +269,8 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
   <div class="grp">
     <h2>Keys</h2>
     <div class="keys">
-      <b>Space / N / →</b><span>next stage (manual)</span>
-      <b>← / B</b><span>back one stage</span>
-      <b>1 – 9</b><span>jump straight to stage</span>
+      <b>Space / N / →</b><span>hour forward (manual)</span>
+      <b>← / B</b><span>hour back</span>
       <b>S</b><span>shutdown — stop all, black screen</span>
       <b>R</b><span>restart — 23:00, play again</span>
       <b>T</b><span>manual / track mode</span>
@@ -335,17 +293,6 @@ const NIGHT_START = 23 * 60;      // 1380
 const NIGHT_LEN   = 8 * 60;       // 480 min
 
 /* ---------------- persistent state ---------------- */
-const DEFAULT_STAGES = [
-  { label: 'Nightfall',        clock: '23:00', travel: 0,  cue: '0:00'  },
-  { label: 'First sleep',      clock: '00:30', travel: 90, cue: '3:00'  },
-  { label: 'Deep night',       clock: '02:00', travel: 90, cue: '6:00'  },
-  { label: 'Hour of the wolf', clock: '03:30', travel: 90, cue: '9:00'  },
-  { label: 'False dawn',       clock: '05:00', travel: 90, cue: '12:00' },
-  { label: 'First light',      clock: '06:15', travel: 60, cue: '15:00' },
-  { label: 'Wake',             clock: '07:00', travel: 45, cue: '18:00' }
-];
-
-let stages = load('sct-stages', DEFAULT_STAGES);
 const SET = load('sct-settings', { color: '#ff3b2f', h24: false, sec: true, size: 100 });
 
 function load(k, fallback){
@@ -353,17 +300,13 @@ function load(k, fallback){
   catch(_) { return structuredClone(fallback); }
 }
 function save(){
-  try {
-    localStorage.setItem('sct-stages', JSON.stringify(stages));
-    localStorage.setItem('sct-settings', JSON.stringify(SET));
-  } catch(_){}
+  try { localStorage.setItem('sct-settings', JSON.stringify(SET)); } catch(_){}
 }
 
 /* ---------------- live state ---------------- */
 const S = {
   mode: 'manual',        // 'manual' | 'track'
   elapsed: 0,            // minutes since 23:00, 0..480
-  stageIdx: 0,
   glide: null,           // {from,to,t0,dur}
   off: false             // shutdown — black screen, everything stopped
 };
@@ -374,68 +317,32 @@ let audioReady = false;
 let seeking = false;
 
 /* ---------------- time helpers ---------------- */
-function parseClock(str){
-  const m = /^(\d{1,2}):(\d{2})$/.exec((str||'').trim());
-  if (!m) return null;
-  const mins = (+m[1] % 24) * 60 + Math.min(+m[2], 59);
-  return clamp(((mins - NIGHT_START) + 1440) % 1440, 0, NIGHT_LEN);
-}
-function parseCue(str){
-  const m = /^(\d+):(\d{2})$/.exec((str||'').trim());
-  if (m) return +m[1] * 60 + +m[2];
-  const n = parseFloat(str);
-  return isFinite(n) ? n : 0;
-}
-function fmtCue(s){ return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0'); }
 function fmt(s){ return isFinite(s) ? Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0') : '0:00'; }
 
-function stageElapsed(i){ const e = parseClock(stages[i].clock); return e === null ? 0 : e; }
-
-/* track-mode breakpoints: audio seconds -> elapsed minutes */
-let bps = [];
-function rebuildBps(){
-  bps = stages
-    .map(st => ({ cue: parseCue(st.cue), e: parseClock(st.clock) }))
-    .filter(b => b.e !== null)
-    .sort((a,b) => a.cue - b.cue);
-  if (!bps.length || bps[0].cue > 0) bps.unshift({ cue: 0, e: 0 });
-}
+/* track mode: the track maps linearly onto the night —
+   start of track = 23:00, end of track = 07:00 */
 function trackElapsed(t){
-  if (!bps.length) return 0;
-  if (t <= bps[0].cue) return bps[0].e;
-  for (let i = 0; i < bps.length - 1; i++) {
-    const a = bps[i], b = bps[i+1];
-    if (t < b.cue) {
-      const f = (t - a.cue) / Math.max(b.cue - a.cue, 0.001);
-      return a.e + (b.e - a.e) * f;
-    }
-  }
-  return bps[bps.length - 1].e;
-}
-function trackStageIdx(t){
-  let idx = 0;
-  stages.forEach((st,i) => { if (parseCue(st.cue) <= t + 0.001) idx = i; });
-  return idx;
+  if (!isFinite(audio.duration) || audio.duration <= 0) return 0;
+  return clamp(t / audio.duration, 0, 1) * NIGHT_LEN;
 }
 
-/* ---------------- stage triggering (manual) ---------------- */
-function trigger(i, snap){
-  if (!stages.length) return;
-  i = clamp(i, 0, stages.length - 1);
-  S.stageIdx = i;
-  const target = stageElapsed(i);
-  const travel = Math.max(0, +stages[i].travel || 0);
-  if (snap || travel === 0 || target <= S.elapsed) {
-    S.glide = null;
-    S.elapsed = target;
-  } else {
-    S.glide = { from: S.elapsed, to: target, t0: performance.now(), dur: travel * 1000 };
-  }
-  paintStages();
+/* manual mode: one hour per press */
+const STEP = 60;              // minutes per step
+const STEP_GLIDE = 12000;     // ms the glide takes
+
+function next(){
+  if (S.mode !== 'manual') return;
+  const base = S.glide ? S.glide.to : S.elapsed;
+  const target = Math.min((Math.floor(base / STEP + 0.001) + 1) * STEP, NIGHT_LEN);
+  if (target <= S.elapsed) return;
+  S.glide = { from: S.elapsed, to: target, t0: performance.now(), dur: STEP_GLIDE };
 }
-function next(){ if (S.mode !== 'manual') return; trigger(S.stageIdx + (atStage() ? 1 : 1), false); }
-function back(){ if (S.mode !== 'manual') return; trigger(S.stageIdx - 1, true); }
-function atStage(){ return !S.glide; }
+function back(){
+  if (S.mode !== 'manual') return;
+  const base = S.glide ? S.glide.to : S.elapsed;
+  S.glide = null;
+  S.elapsed = Math.max((Math.ceil(base / STEP - 0.001) - 1) * STEP, 0);
+}
 function shutdown(){
   S.off = true;
   S.glide = null;
@@ -447,12 +354,10 @@ function restart(){
   document.body.classList.remove('off');
   S.glide = null;
   S.elapsed = 0;
-  S.stageIdx = 0;
   if (audioReady) {
     try { audio.currentTime = 0; } catch(_){}
     audio.play().catch(()=>{});
   }
-  paintStages();
 }
 
 /* ---------------- 7-segment digits ---------------- */
@@ -534,13 +439,11 @@ function frame(t){
   if (S.mode === 'manual') {
     if (S.glide) {
       const f = (t - S.glide.t0) / S.glide.dur;
-      if (f >= 1) { S.elapsed = S.glide.to; S.glide = null; paintStages(); }
+      if (f >= 1) { S.elapsed = S.glide.to; S.glide = null; }
       else S.elapsed = S.glide.from + (S.glide.to - S.glide.from) * f;
     }
   } else if (audioReady) {
     S.elapsed = trackElapsed(audio.currentTime);
-    const idx = trackStageIdx(audio.currentTime);
-    if (idx !== S.stageIdx) { S.stageIdx = idx; paintStages(); }
   }
   S.elapsed = clamp(S.elapsed, 0, NIGHT_LEN);
   paint(t);
@@ -551,7 +454,32 @@ requestAnimationFrame(frame);
 
 /* ---------------- paint ---------------- */
 const chipMode = $('chipMode'), chipTrack = $('chipTrack'), chipState = $('chipState');
-const liquid = $('liquid');
+
+/* segmented meter: discrete cells, no flow */
+const N_CELLS = 84;
+const cells = [];
+{
+  const m = $('meter');
+  for (let i = 0; i < N_CELLS; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell';
+    m.appendChild(c);
+    cells.push(c);
+  }
+}
+/* a lit cell drops out for a beat every few seconds — the machine is not well */
+let nextGlitch = 2000, cut = null;
+function glitch(t, nLit, done){
+  if (cut && t > cut.until) { cells[cut.i].classList.remove('cut'); cut = null; }
+  if (!cut && t > nextGlitch) {
+    if (nLit > 2 && !done && !S.off) {
+      const i = Math.floor(Math.random() * nLit);
+      cells[i].classList.add('cut');
+      cut = { i, until: t + 80 + Math.random() * 100 };
+    }
+    nextGlitch = t + 1800 + Math.random() * 4200;
+  }
+}
 
 function paint(t){
   const total = NIGHT_START + S.elapsed;                 // minutes since 00:00, can exceed 1440
@@ -577,7 +505,13 @@ function paint(t){
   const moving = !!S.glide || (S.mode === 'track' && audioReady && !audio.paused && !done);
   colon.classList.toggle('off', moving && Math.floor(t / 500) % 2 === 1);
 
-  liquid.style.width = (S.elapsed / NIGHT_LEN * 100) + '%';
+  const litF = S.elapsed / NIGHT_LEN * N_CELLS;
+  const nLit = Math.min(Math.floor(litF), N_CELLS);
+  for (let i = 0; i < N_CELLS; i++) {
+    cells[i].classList.toggle('lit', i < nLit || done);
+    cells[i].classList.toggle('edge', !done && i === nLit && litF > i);
+  }
+  glitch(t, nLit, done);
   document.body.classList.toggle('done', done);
 
   chipState.textContent = done ? 'morning' : S.glide ? 'gliding' : (S.mode === 'track' && audioReady && !audio.paused) ? 'tracking' : 'holding';
@@ -593,81 +527,6 @@ function paint(t){
   }
 }
 
-function paintStages(){
-  [...$('stageList').children].forEach((r,i) => r.classList.toggle('cur', i === S.stageIdx));
-}
-
-/* ---------------- stage editor ---------------- */
-function paintEditor(){
-  const box = $('stageList');
-  box.innerHTML = '';
-  stages.forEach((st, i) => {
-    const row = document.createElement('div');
-    row.className = 'srow' + (i === S.stageIdx ? ' cur' : '');
-    row.innerHTML =
-      '<input type="text" value="' + esc(st.label) + '" data-k="label">' +
-      '<input type="text" value="' + esc(st.clock) + '" data-k="clock">' +
-      '<input type="number" value="' + (+st.travel || 0) + '" min="0" data-k="travel">' +
-      '<input type="text" value="' + esc(st.cue) + '" data-k="cue">' +
-      '<button class="del" title="remove">×</button>';
-    row.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('change', () => {
-        st[inp.dataset.k] = inp.dataset.k === 'travel' ? (+inp.value || 0) : inp.value;
-        if (inp.dataset.k === 'clock' && parseClock(st.clock) === null) { st.clock = '23:00'; inp.value = st.clock; }
-        commit();
-      });
-    });
-    row.querySelector('.del').onclick = () => {
-      stages.splice(i, 1);
-      S.stageIdx = clamp(S.stageIdx, 0, stages.length - 1);
-      commit(true);
-    };
-    box.appendChild(row);
-  });
-}
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
-function commit(redraw){
-  save();
-  rebuildBps();
-  if (redraw) paintEditor();
-  paintStages();
-}
-
-$('btnAdd').onclick = () => {
-  const lastSt = stages[stages.length - 1];
-  stages.push({ label: 'Stage ' + (stages.length + 1), clock: lastSt ? lastSt.clock : '23:00', travel: 60, cue: lastSt ? fmtCue(parseCue(lastSt.cue) + 60) : '0:00' });
-  commit(true);
-};
-$('btnSpread').onclick = () => {
-  if (!audioReady || !isFinite(audio.duration) || stages.length < 2) return;
-  stages.forEach((st, i) => { st.cue = fmtCue(audio.duration * i / (stages.length - 1) * 0.999); });
-  commit(true);
-};
-$('btnExport').onclick = () => {
-  const blob = new Blob([JSON.stringify(stages, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'soundcontroltimer-stages.json';
-  a.click();
-};
-$('btnImport').onclick = () => $('importFile').click();
-$('importFile').addEventListener('change', e => {
-  const f = e.target.files && e.target.files[0];
-  if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    try {
-      const st = JSON.parse(r.result);
-      if (Array.isArray(st) && st.every(x => x.label !== undefined && x.clock)) {
-        stages = st;
-        S.stageIdx = 0;
-        commit(true);
-      }
-    } catch(_){}
-  };
-  r.readAsText(f);
-});
-
 /* ---------------- mode ---------------- */
 function setMode(m){
   S.mode = m;
@@ -676,10 +535,9 @@ function setMode(m){
   $('btnManual').className = 'btn' + (m === 'manual' ? ' live' : '');
   $('btnTrackMode').className = 'btn' + (m === 'track' ? ' live' : '');
   $('modeNote').innerHTML = m === 'manual'
-    ? 'Manual — fire <b>Next stage</b> (or Space) as the music reaches each section. The clock glides to that stage\'s time over its travel seconds, then holds. It never moves on its own.'
-    : 'Track — the clock follows the loaded track through the stage cues. Play, pause and scrub the track; the night follows.';
+    ? 'Manual — <b>Hour forward</b> (or Space) glides the clock one hour ahead, then holds. It never moves on its own.'
+    : 'Track — the track maps onto the night: its start is 23:00, its end is 07:00. Play, pause and scrub; the clock follows.';
   if (m === 'track' && audioReady) S.elapsed = trackElapsed(audio.currentTime);
-  paintStages();
 }
 $('btnManual').onclick = () => setMode('manual');
 $('btnTrackMode').onclick = () => setMode('track');
@@ -723,7 +581,7 @@ function applyDisplay(){
   document.body.classList.toggle('nosec', !SET.sec);
   $('btn24').className = 'btn' + (SET.h24 ? ' armed' : '');
   $('btnSec').className = 'btn' + (SET.sec ? ' armed' : '');
-  $('led').style.transform = 'skewX(-4deg) scale(' + SET.size / 100 + ')';
+  $('led').style.transform = 'scale(' + SET.size / 100 + ')';
   $('size').value = SET.size;
   $('sizeVal').textContent = SET.size + '%';
 }
@@ -753,11 +611,6 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyR') { e.preventDefault(); restart(); }
     return;
   }
-  if (e.code.startsWith('Digit')) {
-    const n = +e.code.slice(5);
-    if (n >= 1 && n <= stages.length) { e.preventDefault(); trigger(n - 1, false); }
-    return;
-  }
   switch (e.code) {
     case 'Space':
       e.preventDefault();
@@ -774,11 +627,8 @@ addEventListener('keydown', e => {
 });
 
 /* ---------------- go ---------------- */
-rebuildBps();
-paintEditor();
 applyDisplay();
 setMode('manual');
-paintStages();
 })();
 </script>
 </body>

@@ -1,9 +1,9 @@
 # dramaturgh
 
-Stage-tech experiments for a theatre piece. Three self-contained
-projects, plus shared visual material.
+Stage-tech experiments for a theatre piece. Self-contained projects,
+plus shared visual material.
 
-## CORTEX·01 — `cortex-deploy/`
+## CORTEX·01 — `BrainButtonInterface/`
 
 A spinning 1-bit halftone brain wired to a physical button. An ESP32
 counts presses, drives a WS2812B LED strip (each press fires a pulse that
@@ -15,48 +15,43 @@ GET /counter -> {"counter": 12}
 GET /reset   -> {"counter": 0}
 ```
 
-`cortex-deploy/index.html` polls the device and fires the on-screen
+`BrainButtonInterface/index.html` polls the device and fires the on-screen
 neurons on every press. The device count is authoritative — the page
 adopts whatever the ESP32 reports.
 
-- Web page: `cortex-deploy/index.html` (single static file, no build step)
-- Firmware: `cortex-deploy/hardware/cortex_button_esp32.ino`
+- Web page: `BrainButtonInterface/index.html` (single static file, no build step)
+- Firmware: `BrainButtonInterface/hardware/cortex_button_esp32.ino`
   (button on GPIO 5, LED strip data on GPIO 7)
-- Full setup, deployment, and CORS notes: `cortex-deploy/README.md` —
+- Full setup, deployment, and CORS notes: `BrainButtonInterface/README.md` —
   read it before deploying; HTTPS pages cannot talk to a LAN device.
-
-## DECK — `timecode-deck.html`
-
-A standalone show-control style display: live feed, timecode, and rail in
-a black-on-black monospace aesthetic. Pure HTML/CSS/JS in one file — open
-it directly in a browser. No hardware and no relation to the CORTEX
-counter.
 
 ## SOUNDCONTROLTIMER — `SoundControlTimer/`
 
 A giant 7-segment electronic clock for the main visualiser. It shows a
 night that runs from **11 PM to 7 AM** — but time never passes on its
-own: the clock is advanced only by the **stages of the music**, and it
-stops dead at 07:00.
+own: the clock is advanced only by the music, and it stops dead at 07:00.
 
 Two ways to drive it:
 
-- **Manual** — the operator fires *Next stage* (Space / N / →) as the
-  live music reaches each section; the clock glides to that stage's time
-  over a per-stage travel duration, then holds.
-- **Track** — load the show track in the page; each stage has a cue
-  point (m:ss) and the clock is welded to the track — playing, pausing
-  and scrubbing all move the night.
+- **Manual** — *Hour forward* (Space / N / →) glides the clock one hour
+  ahead over a few seconds, then holds; ← / B steps an hour back.
+- **Track** — load the show track in the page; it maps linearly onto the
+  night (track start = 23:00, track end = 07:00). Playing, pausing and
+  scrubbing all move the clock.
 
-The stage list (name, clock target, travel, cue) is editable in the
-on-screen panel, saved in the browser, and exportable as JSON. Display
-options: LED colour, 12/24-hour, seconds on/off, size. `H` hides all
-chrome for the projector. `S` is the shutdown — everything stops and the
-screen goes fully black; `R` restarts the night at 11 PM and plays the
-track again from the top. Night progress reads as a liquid-filled tube
-along the bottom of the screen. One static file: `SoundControlTimer/index.html`
-(`timecode-deck.html` alongside it is the reference copy of DECK it grew
-from).
+Display options: LED colour, 12/24-hour, seconds on/off, size. `H` hides
+all chrome for the projector. `S` is the shutdown — everything stops and
+the screen goes fully black; `R` restarts the night at 11 PM and plays
+the track again from the top. Night progress reads as a segmented machine
+meter along the bottom — discrete cells that snap on one by one, the
+boundary cell flickering, with occasional momentary dropouts. The whole
+display runs cold and machine-like: red LED by default (ice/amber/green
+selectable), scanlines, and an irregular power-flicker in the digits.
+
+One static file: `SoundControlTimer/index.html`. Alongside it,
+`SoundControlTimer/timecode-deck.html` is DECK, the show-control display
+(live feed / timecode / rail) the night clock grew from — standalone,
+no hardware.
 
 ## Visual material
 
