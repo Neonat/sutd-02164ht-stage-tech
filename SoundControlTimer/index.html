@@ -36,6 +36,19 @@ button,select,input{font-family:inherit;color:inherit}
 
 /* ---------- stage ---------- */
 #stage{position:fixed;inset:0;background:var(--void);overflow:hidden}
+#cam{
+  position:absolute;top:50%;left:50%;
+  width:100%;height:100%;
+  object-fit:cover;
+  transform-origin:center;
+  translate:-50% -50%;
+  filter:grayscale(1) contrast(1.05);
+  opacity:.72;
+  background:var(--void);
+  transition:opacity .4s ease;
+}
+body.nogray #cam{filter:none}
+body.off #cam{display:none}
 #vignette{
   position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(120% 90% at 50% 45%, transparent 40%, rgba(0,0,0,.5) 75%, #000 100%);
@@ -171,6 +184,7 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
 .keys{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:10px;color:var(--dim);letter-spacing:.02em}
 .keys b{color:var(--bone);font-weight:400;white-space:nowrap}
 .note{font-family:var(--label);font-size:10px;line-height:1.6;letter-spacing:.08em;color:var(--dim)}
+#err{color:var(--bone);font-size:10px;line-height:1.5;font-family:var(--label);letter-spacing:.1em;text-transform:uppercase}
 
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-thumb{background:var(--ink3)}
@@ -185,6 +199,7 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
 <body class="panelopen">
 
 <div id="stage">
+  <video id="cam" playsinline autoplay muted></video>
   <div id="vignette"></div>
   <div id="grain"></div>
   <div id="scan"></div>
@@ -192,6 +207,7 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
   <div id="hud">
     <div id="topbar">
       <div id="chips">
+        <div class="chip" id="chipCam">feed off</div>
         <div class="chip" id="chipMode">manual</div>
         <div class="chip" id="chipTrack">no track</div>
         <div class="chip" id="chipState">holding</div>
@@ -214,6 +230,22 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
 <div id="tab">panel</div>
 
 <div id="panel">
+  <div class="grp">
+    <h2>Feed</h2>
+    <select id="devSel"><option value="">Grant access to list cameras</option></select>
+    <div class="row">
+      <button class="btn" id="btnCam">Start camera</button>
+      <button class="btn" id="btnMirror">Mirror</button>
+      <button class="btn" id="btnGray">Colour</button>
+    </div>
+    <div class="sub"><span>Zoom</span><span id="zoomVal">1.00×</span></div>
+    <input type="range" id="zoom" min="1" max="8" step="0.02" value="1">
+    <div class="sub"><span>Feed level</span><span id="lvlVal">72%</span></div>
+    <input type="range" id="lvl" min="0" max="100" step="1" value="72">
+    <div class="note">Serve over https or localhost so the browser releases the camera. Drag the picture to reframe when zoomed; double-click to recentre.</div>
+    <div id="err"></div>
+  </div>
+
   <div class="grp">
     <h2>Mode &amp; transport</h2>
     <div class="row">
@@ -274,6 +306,9 @@ input[type=range]::-moz-range-thumb{border:0;border-radius:0;width:3px;height:15
       <b>S</b><span>shutdown — stop all, black screen</span>
       <b>R</b><span>restart — 23:00, play again</span>
       <b>T</b><span>manual / track mode</span>
+      <b>[ / ]</b><span>zoom out / in</span>
+      <b>C</b><span>colour on the feed</span>
+      <b>K</b><span>mirror the feed</span>
       <b>M</b><span>fullscreen</span>
       <b>H</b><span>hide the panel and chips</span>
     </div>
@@ -308,7 +343,11 @@ const S = {
   mode: 'manual',        // 'manual' | 'track'
   elapsed: 0,            // minutes since 23:00, 0..480
   glide: null,           // {from,to,t0,dur}
-  off: false             // shutdown — black screen, everything stopped
+  off: false,            // shutdown — black screen, everything stopped
+  zoom: 1,
+  panX: 0, panY: 0,
+  mirror: false,
+  gray: true
 };
 
 const audio = new Audio();
@@ -573,6 +612,93 @@ seek.addEventListener('input', () => {
   try { audio.currentTime = seek.value / 1000 * audio.duration; } catch(_){}
 });
 
+/* ---------------- camera ---------------- */
+const cam = $('cam');
+let stream = null;
+let wakeLock = null;
+
+function applyTransform(){
+  cam.style.transform = 'translate(' + S.panX + 'px,' + S.panY + 'px) scale(' + (S.mirror ? -S.zoom : S.zoom) + ',' + S.zoom + ')';
+}
+function setZoom(z){
+  S.zoom = clamp(z, 1, 8);
+  $('zoom').value = S.zoom;
+  $('zoomVal').textContent = S.zoom.toFixed(2) + '×';
+  if (S.zoom === 1) { S.panX = 0; S.panY = 0; }
+  applyTransform();
+}
+function setMirror(v){ S.mirror = v; $('btnMirror').className = 'btn' + (v ? ' armed' : ''); applyTransform(); }
+function setGray(v){
+  S.gray = v;
+  document.body.classList.toggle('nogray', !v);
+  $('btnGray').className = 'btn' + (!v ? ' armed' : '');
+  $('btnGray').textContent = v ? 'Colour' : 'Monochrome';
+}
+
+async function startCam(){
+  const id = $('devSel').value;
+  try {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: id ? { deviceId: { exact: id }, width: { ideal: 1920 } }
+                : { facingMode: 'environment', width: { ideal: 1920 } },
+      audio: false
+    });
+    cam.srcObject = stream;
+    await cam.play().catch(()=>{});
+    $('err').textContent = '';
+    $('chipCam').textContent = 'feed live';
+    $('chipCam').className = 'chip on';
+    $('btnCam').textContent = 'Restart camera';
+    listDevices();
+    keepAwake();
+  } catch (err) {
+    $('err').textContent = err.name === 'NotAllowedError'
+      ? 'Camera refused. Allow it in the address bar, and serve the page over https or localhost.'
+      : 'Camera failed — ' + err.message;
+  }
+}
+
+async function listDevices(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  const cur = $('devSel').value;
+  $('devSel').innerHTML = '<option value="">Default camera</option>' +
+    ds.map((d,i) => '<option value="' + d.deviceId + '">' + (d.label || 'Camera ' + (i+1)) + '</option>').join('');
+  if (cur) $('devSel').value = cur;
+}
+listDevices();
+
+async function keepAwake(){
+  try { if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch(_){}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && stream) { wakeLock = null; keepAwake(); } });
+
+/* drag to reframe when zoomed */
+let drag = null;
+$('stage').addEventListener('pointerdown', e => {
+  if (S.zoom <= 1 || e.target.closest('#panel')) return;
+  drag = { x: e.clientX, y: e.clientY, px: S.panX, py: S.panY };
+});
+addEventListener('pointermove', e => {
+  if (!drag) return;
+  S.panX = drag.px + (e.clientX - drag.x);
+  S.panY = drag.py + (e.clientY - drag.y);
+  applyTransform();
+});
+addEventListener('pointerup', () => drag = null);
+$('stage').addEventListener('dblclick', e => {
+  if (e.target.closest('#panel')) return;
+  S.panX = 0; S.panY = 0; applyTransform();
+});
+
+$('btnCam').onclick = startCam;
+$('devSel').onchange = () => { if (stream) startCam(); };
+$('btnMirror').onclick = () => setMirror(!S.mirror);
+$('btnGray').onclick = () => setGray(!S.gray);
+$('zoom').oninput = e => setZoom(parseFloat(e.target.value));
+$('lvl').oninput = e => { cam.style.opacity = e.target.value / 100; $('lvlVal').textContent = e.target.value + '%'; };
+
 /* ---------------- display ---------------- */
 function applyDisplay(){
   document.documentElement.style.setProperty('--led', SET.color);
@@ -621,12 +747,19 @@ addEventListener('keydown', e => {
     case 'KeyS': e.preventDefault(); shutdown(); break;
     case 'KeyR': restart(); break;
     case 'KeyT': setMode(S.mode === 'manual' ? 'track' : 'manual'); break;
+    case 'BracketRight': setZoom(S.zoom + 0.1); break;
+    case 'BracketLeft':  setZoom(S.zoom - 0.1); break;
+    case 'KeyC': setGray(!S.gray); break;
+    case 'KeyK': setMirror(!S.mirror); break;
     case 'KeyM': fullscreen(); break;
     case 'KeyH': case 'Backquote': e.preventDefault(); stealth(); break;
   }
 });
 
 /* ---------------- go ---------------- */
+setMirror(false);
+setGray(true);
+setZoom(1);
 applyDisplay();
 setMode('manual');
 })();
