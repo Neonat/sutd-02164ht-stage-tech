@@ -1,7 +1,24 @@
-# dramaturgh
+# SUTD 02.164HT — stage technology
 
-Stage-tech experiments for a theatre piece. Self-contained projects,
-plus shared visual material.
+Stage visuals and physical interaction experiments for the final performance in **02.164HT Dramaturgy**, taught by **Prof Nien**. Previously named `dramaturgh`.
+
+The repository contains two independent browser displays: a button-driven brain visual and a music-controlled night clock. Operators can rehearse them locally, project the visuals during the performance, and optionally connect the brain interface to ESP32 hardware. Shared concept artwork is kept alongside the runnable projects.
+
+## Run the browser displays
+
+No frontend build is required. With Python 3 installed, serve the repository over HTTP:
+
+```sh
+git clone https://github.com/Neonat/sutd-02164ht-stage-tech.git
+cd sutd-02164ht-stage-tech
+python3 -m http.server 8000
+```
+
+- [Brain interface](BrainButtonInterface/index.html): open http://localhost:8000/BrainButtonInterface/.
+- [Night clock](SoundControlTimer/index.html): open http://localhost:8000/SoundControlTimer/ and load the show track or use manual controls.
+- [Timecode deck](SoundControlTimer/timecode-deck.html): open http://localhost:8000/SoundControlTimer/timecode-deck.html.
+
+For the hardware mode, flash the [ESP32 sketch](BrainButtonInterface/hardware/cortex_button_esp32.ino) with the device's Wi-Fi credentials, read its IP in the Serial Monitor, and connect from the brain page on the same network. The sketch uses the FastLED library for the LED strip. See the [hardware and deployment guide](BrainButtonInterface/README.md) for wiring, CORS and the HTTPS/LAN restriction.
 
 ## CORTEX·01 — `BrainButtonInterface/`
 
@@ -22,7 +39,7 @@ adopts whatever the ESP32 reports.
 - Web page: `BrainButtonInterface/index.html` (single static file, no build step)
 - Firmware: `BrainButtonInterface/hardware/cortex_button_esp32.ino`
   (button on GPIO 5, LED strip data on GPIO 7)
-- Full setup, deployment, and CORS notes: `BrainButtonInterface/README.md` —
+- Full setup, deployment, and CORS notes: [BrainButtonInterface/README.md](BrainButtonInterface/README.md) —
   read it before deploying; HTTPS pages cannot talk to a LAN device.
 
 ## SOUNDCONTROLTIMER — `SoundControlTimer/`
@@ -60,3 +77,9 @@ Concept art and reference footage, not referenced by either page:
 - `DRAMA_welcome.png`, `DRAMA_drowning.png`, `DRAMA_tunnel.png`,
   `DRAMA_codedhuman.png` — halftone concept stills
 - `A_black_and_white_halftone_vid.mp4` — halftone video test
+
+## Architecture and boundaries
+
+Each display owns its HTML, styles, rendering and controls in a single page. Only the brain page uses the ESP32 HTTP counter; the clock and timecode deck run independently without hardware. The clock follows a loaded track's playback position or explicit manual cues, rather than detecting beats from ambient sound.
+
+The concept stills and video below are reference material, not generated runtime output or evidence of a deployed installation. The browser-only brain demo can fire visually without hardware; an HTTPS-hosted page cannot directly poll the ESP32's HTTP LAN address.
