@@ -1,85 +1,29 @@
-# SUTD 02.164HT — stage technology
+# Stage displays for SUTD Dramaturgy
 
-Stage visuals and physical interaction experiments for the final performance in **02.164HT Dramaturgy**, taught by **Prof Nien**. Previously named `dramaturgh`.
+For the final performance in SUTD 02.164HT Dramaturgy, taught by Prof Nien, the stage technology project explored two kinds of cues. A button press fires neurons in a spinning halftone brain. A show track or a manual cue moves a projected clock through a night compressed into the length of the performance. The repository was previously called `dramaturgh`.
 
-The repository contains two independent browser displays: a button-driven brain visual and a music-controlled night clock. Operators can rehearse them locally, project the visuals during the performance, and optionally connect the brain interface to ESP32 hardware. Shared concept artwork is kept alongside the runnable projects.
+![Halftone welcome concept for the performance](DRAMA_welcome.png)
 
-## Run the browser displays
+## Rehearse in a browser
 
-No frontend build is required. With Python 3 installed, serve the repository over HTTP:
+Start a local server with Python 3 from the repository root.
 
 ```sh
-git clone https://github.com/Neonat/sutd-02164ht-stage-tech.git
-cd sutd-02164ht-stage-tech
 python3 -m http.server 8000
 ```
 
-- [Brain interface](BrainButtonInterface/index.html): open http://localhost:8000/BrainButtonInterface/.
-- [Night clock](SoundControlTimer/index.html): open http://localhost:8000/SoundControlTimer/ and load the show track or use manual controls.
-- [Timecode deck](SoundControlTimer/timecode-deck.html): open http://localhost:8000/SoundControlTimer/timecode-deck.html.
+| Display | What to try |
+| --- | --- |
+| [CORTEX·01](http://localhost:8000/BrainButtonInterface/) | Click the brain or press Space to fire a visual pulse. The browser can rehearse the effect without the physical button. |
+| [Night clock](http://localhost:8000/SoundControlTimer/) | In manual mode, press Space to advance one hour. In track mode, load audio and scrub it to see the clock move between 23:00 and 07:00. Press H to hide the controls for projection. |
+| [Timecode deck](http://localhost:8000/SoundControlTimer/timecode-deck.html) | Inspect the separate show-control study with its camera feed, timecode, and cue rail. Camera access requires browser permission. |
 
-For the hardware mode, flash the [ESP32 sketch](BrainButtonInterface/hardware/cortex_button_esp32.ino) with the device's Wi-Fi credentials, read its IP in the Serial Monitor, and connect from the brain page on the same network. The sketch uses the FastLED library for the LED strip. See the [hardware and deployment guide](BrainButtonInterface/README.md) for wiring, CORS and the HTTPS/LAN restriction.
+## What drives each display
 
-## CORTEX·01 — `BrainButtonInterface/`
+The [brain page](BrainButtonInterface/index.html) draws the brain and activity trace on HTML canvases. In hardware mode the [ESP32 sketch](BrainButtonInterface/hardware/cortex_button_esp32.ino) debounces the button, counts presses, and uses FastLED to send pulses along a WS2812B strip. The pulse shifts from white towards red as the count rises. The device serves the count over Wi-Fi at `/counter`, and the browser polls it to synchronise the projection.
 
-A spinning 1-bit halftone brain wired to a physical button. An ESP32
-counts presses, drives a WS2812B LED strip (each press fires a pulse that
-shifts from white to red as the count climbs), and serves the count over
-Wi-Fi:
+For a connected rehearsal, serve the page over HTTP on the same network as the ESP32. Enter the board's address from the Serial Monitor. An HTTPS page cannot poll the device's plain HTTP address in this setup. The [hardware guide](BrainButtonInterface/README.md) covers wiring, firmware, and network setup.
 
-```
-GET /counter -> {"counter": 12}
-GET /reset   -> {"counter": 0}
-```
+The [night clock](SoundControlTimer/index.html) reads the loaded audio's playback position. Pausing the track holds the clock at the same point. In manual mode it holds after each cue. The operator can also show a camera feed, black out the display with S, or restart with R. The [timecode deck source](SoundControlTimer/timecode-deck.html) runs independently. All three pages contain their own JavaScript and CSS and can run without a frontend build.
 
-`BrainButtonInterface/index.html` polls the device and fires the on-screen
-neurons on every press. The device count is authoritative — the page
-adopts whatever the ESP32 reports.
-
-- Web page: `BrainButtonInterface/index.html` (single static file, no build step)
-- Firmware: `BrainButtonInterface/hardware/cortex_button_esp32.ino`
-  (button on GPIO 5, LED strip data on GPIO 7)
-- Full setup, deployment, and CORS notes: [BrainButtonInterface/README.md](BrainButtonInterface/README.md) —
-  read it before deploying; HTTPS pages cannot talk to a LAN device.
-
-## SOUNDCONTROLTIMER — `SoundControlTimer/`
-
-A giant 7-segment electronic clock for the main visualiser. It shows a
-night that runs from **11 PM to 7 AM** — but time never passes on its
-own: the clock is advanced only by the music, and it stops dead at 07:00.
-
-Two ways to drive it:
-
-- **Manual** — *Hour forward* (Space / N / →) glides the clock one hour
-  ahead over a few seconds, then holds; ← / B steps an hour back.
-- **Track** — load the show track in the page; it maps linearly onto the
-  night (track start = 23:00, track end = 07:00). Playing, pausing and
-  scrubbing all move the clock.
-
-Display options: LED colour, 12/24-hour, seconds on/off, size. `H` hides
-all chrome for the projector. `S` is the shutdown — everything stops and
-the screen goes fully black; `R` restarts the night at 11 PM and plays
-the track again from the top. Night progress reads as a segmented machine
-meter along the bottom — discrete cells that snap on one by one, the
-boundary cell flickering, with occasional momentary dropouts. The whole
-display runs cold and machine-like: red LED by default (ice/amber/green
-selectable), scanlines, and an irregular power-flicker in the digits.
-
-One static file: `SoundControlTimer/index.html`. Alongside it,
-`SoundControlTimer/timecode-deck.html` is DECK, the show-control display
-(live feed / timecode / rail) the night clock grew from — standalone,
-no hardware.
-
-## Visual material
-
-Concept art and reference footage, not referenced by either page:
-
-- `DRAMA_welcome.png`, `DRAMA_drowning.png`, `DRAMA_tunnel.png`,
-  `DRAMA_codedhuman.png` — halftone concept stills
-- `A_black_and_white_halftone_vid.mp4` — halftone video test
-
-## Architecture and boundaries
-
-Each display owns its HTML, styles, rendering and controls in a single page. Only the brain page uses the ESP32 HTTP counter; the clock and timecode deck run independently without hardware. The clock follows a loaded track's playback position or explicit manual cues, rather than detecting beats from ambient sound.
-
-The concept stills and video below are reference material, not generated runtime output or evidence of a deployed installation. The browser-only brain demo can fire visually without hardware; an HTTPS-hosted page cannot directly poll the ESP32's HTTP LAN address.
+The performance artwork also includes [drowning](DRAMA_drowning.png), [tunnel](DRAMA_tunnel.png), and [coded human](DRAMA_codedhuman.png) concept stills, plus a [black-and-white halftone video test](A_black_and_white_halftone_vid.mp4).
